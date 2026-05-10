@@ -57,7 +57,7 @@ Variables recomendadas:
 - `GLUE_JOB_NAME=simem-bronze-to-silver`
 - `GLUE_CRAWLER_NAME=simem-silver-crawler`
 
-Secreto recomendado:
+Secreto requerido:
 
 - `AWS_GITHUB_ACTIONS_ROLE_ARN`
 
@@ -67,23 +67,6 @@ Ese secreto debe apuntar a un role de AWS asumible via GitHub OIDC y con permiso
 - leer y escribir en el bucket objetivo
 - usar el Data Catalog
 - pasar el role de Glue si el workflow tambien administra el job
-
-### Bootstrap sin OIDC
-
-Si todavia no tienes un role OIDC para GitHub Actions, los workflows tambien soportan estos secretos temporales:
-
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
-- `AWS_SESSION_TOKEN`
-
-Con esos tres secretos puedes ejecutar el pipeline una primera vez para crear:
-
-- el role de Glue
-- la database de Glue
-- el job
-- el crawler
-
-Luego, idealmente migras a OIDC y dejas de depender de credenciales temporales.
 
 ## Flujo de despliegue sugerido
 
