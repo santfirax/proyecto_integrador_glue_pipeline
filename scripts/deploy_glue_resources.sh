@@ -3,7 +3,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PROFILE="${AWS_PROFILE_NAME:-878311411214_AdministratorAccess}"
+PROFILE="${AWS_PROFILE_NAME:-}"
 REGION="${AWS_REGION_NAME:-us-east-1}"
 BUCKET="${S3_BUCKET_NAME:-eafit-proyecto-integrador-simem}"
 ROLE_NAME="${GLUE_ROLE_NAME:-simem-glue-service-role}"
@@ -17,17 +17,23 @@ TARGET_PATH="s3://${BUCKET}/silver/simem-data/"
 TRUST_POLICY_PATH="${PROJECT_ROOT}/infra/glue-trust-policy.json"
 INLINE_POLICY_PATH="${PROJECT_ROOT}/infra/simem-glue-inline-policy.json"
 
-echo "Subiendo script de Glue a ${SCRIPT_S3_PATH}"
-aws s3 cp "${SCRIPT_LOCAL_PATH}" "${SCRIPT_S3_PATH}" --profile "${PROFILE}" --region "${REGION}"
+AWS_ARGS=(--region "${REGION}")
 
-if aws iam get-role --role-name "${ROLE_NAME}" --profile "${PROFILE}" >/dev/null 2>&1; then
+if [[ -n "${PROFILE}" ]]; then
+  AWS_ARGS+=(--profile "${PROFILE}")
+fi
+
+echo "Subiendo script de Glue a ${SCRIPT_S3_PATH}"
+aws s3 cp "${SCRIPT_LOCAL_PATH}" "${SCRIPT_S3_PATH}" "${AWS_ARGS[@]}"
+
+if aws iam get-role --role-name "${ROLE_NAME}" "${AWS_ARGS[@]}" >/dev/null 2>&1; then
   echo "El role ${ROLE_NAME} ya existe"
 else
   echo "Creando role ${ROLE_NAME}"
   aws iam create-role \
     --role-name "${ROLE_NAME}" \
     --assume-role-policy-document "file://${TRUST_POLICY_PATH}" \
-    --profile "${PROFILE}" \
+    "${AWS_ARGS[@]}" \
     --output json >/dev/null
 fi
 
@@ -35,28 +41,27 @@ echo "Adjuntando policy administrada AWSGlueServiceRole"
 aws iam attach-role-policy \
   --role-name "${ROLE_NAME}" \
   --policy-arn "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole" \
-  --profile "${PROFILE}" >/dev/null || true
+  "${AWS_ARGS[@]}" >/dev/null || true
 
 echo "Aplicando inline policy con acceso a S3"
 aws iam put-role-policy \
   --role-name "${ROLE_NAME}" \
   --policy-name "simem-glue-s3-access" \
   --policy-document "file://${INLINE_POLICY_PATH}" \
-  --profile "${PROFILE}" >/dev/null
+  "${AWS_ARGS[@]}" >/dev/null
 
-ROLE_ARN="$(aws iam get-role --role-name "${ROLE_NAME}" --profile "${PROFILE}" --query 'Role.Arn' --output text)"
+ROLE_ARN="$(aws iam get-role --role-name "${ROLE_NAME}" "${AWS_ARGS[@]}" --query 'Role.Arn' --output text)"
 
-if aws glue get-database --name "${DATABASE_NAME}" --profile "${PROFILE}" --region "${REGION}" >/dev/null 2>&1; then
+if aws glue get-database --name "${DATABASE_NAME}" "${AWS_ARGS[@]}" >/dev/null 2>&1; then
   echo "La database ${DATABASE_NAME} ya existe"
 else
   echo "Creando database ${DATABASE_NAME}"
   aws glue create-database \
     --database-input "{\"Name\":\"${DATABASE_NAME}\",\"Description\":\"Silver layer para datasets SIMEM\"}" \
-    --profile "${PROFILE}" \
-    --region "${REGION}" >/dev/null
+    "${AWS_ARGS[@]}" >/dev/null
 fi
 
-if aws glue get-job --job-name "${JOB_NAME}" --profile "${PROFILE}" --region "${REGION}" >/dev/null 2>&1; then
+if aws glue get-job --job-name "${JOB_NAME}" "${AWS_ARGS[@]}" >/dev/null 2>&1; then
   echo "Actualizando job ${JOB_NAME}"
   aws glue update-job \
     --job-name "${JOB_NAME}" \
@@ -71,8 +76,7 @@ if aws glue get-job --job-name "${JOB_NAME}" --profile "${PROFILE}" --region "${
       \"WorkerType\":\"G.1X\",
       \"NumberOfWorkers\":2
     }" \
-    --profile "${PROFILE}" \
-    --region "${REGION}" >/dev/null
+    "${AWS_ARGS[@]}" >/dev/null
 else
   echo "Creando job ${JOB_NAME}"
   aws glue create-job \
@@ -86,11 +90,10 @@ else
     --timeout 60 \
     --worker-type "G.1X" \
     --number-of-workers 2 \
-    --profile "${PROFILE}" \
-    --region "${REGION}" >/dev/null
+    "${AWS_ARGS[@]}" >/dev/null
 fi
 
-if aws glue get-crawler --name "${CRAWLER_NAME}" --profile "${PROFILE}" --region "${REGION}" >/dev/null 2>&1; then
+if aws glue get-crawler --name "${CRAWLER_NAME}" "${AWS_ARGS[@]}" >/dev/null 2>&1; then
   echo "Actualizando crawler ${CRAWLER_NAME}"
   aws glue update-crawler \
     --name "${CRAWLER_NAME}" \
@@ -98,8 +101,7 @@ if aws glue get-crawler --name "${CRAWLER_NAME}" --profile "${PROFILE}" --region
     --database-name "${DATABASE_NAME}" \
     --targets "{\"S3Targets\":[{\"Path\":\"${TARGET_PATH}\"}]}" \
     --schema-change-policy '{"UpdateBehavior":"UPDATE_IN_DATABASE","DeleteBehavior":"DEPRECATE_IN_DATABASE"}' \
-    --profile "${PROFILE}" \
-    --region "${REGION}" >/dev/null
+    "${AWS_ARGS[@]}" >/dev/null
 else
   echo "Creando crawler ${CRAWLER_NAME}"
   aws glue create-crawler \
@@ -108,8 +110,7 @@ else
     --database-name "${DATABASE_NAME}" \
     --targets "{\"S3Targets\":[{\"Path\":\"${TARGET_PATH}\"}]}" \
     --schema-change-policy '{"UpdateBehavior":"UPDATE_IN_DATABASE","DeleteBehavior":"DEPRECATE_IN_DATABASE"}' \
-    --profile "${PROFILE}" \
-    --region "${REGION}" >/dev/null
+    "${AWS_ARGS[@]}" >/dev/null
 fi
 
 echo "Listo."
