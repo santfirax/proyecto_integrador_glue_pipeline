@@ -1,0 +1,52 @@
+name: Run Glue Job
+
+on:
+  workflow_dispatch:
+    inputs:
+      dataset_slugs:
+        description: "Datasets separados por coma. Vacio = todos"
+        required: false
+        type: string
+      start_crawler:
+        description: "Iniciar crawler al terminar el job"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  run-job:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION_NAME: ${{ vars.AWS_REGION_NAME || 'us-east-1' }}
+      GLUE_JOB_NAME: ${{ vars.GLUE_JOB_NAME || 'simem-bronze-to-silver' }}
+      GLUE_CRAWLER_NAME: ${{ vars.GLUE_CRAWLER_NAME || 'simem-silver-crawler' }}
+      DATASET_SLUGS: ${{ inputs.dataset_slugs }}
+      START_CRAWLER: ${{ inputs.start_crawler }}
+      WAIT_FOR_JOB: true
+      WAIT_FOR_CRAWLER: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        if: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION_NAME }}
+
+      - name: Configure AWS Credentials with Static Secrets
+        if: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN == '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION_NAME }}
+
+      - name: Start Glue Job
+        run: bash scripts/run_glue_job.sh

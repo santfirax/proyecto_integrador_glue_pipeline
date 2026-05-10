@@ -1,0 +1,49 @@
+name: Deploy Glue Resources
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "jobs/**"
+      - "infra/**"
+      - "scripts/deploy_glue_resources.sh"
+      - ".github/workflows/deploy-glue.yml"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION_NAME: ${{ vars.AWS_REGION_NAME || 'us-east-1' }}
+      S3_BUCKET_NAME: ${{ vars.S3_BUCKET_NAME }}
+      GLUE_ROLE_NAME: ${{ vars.GLUE_ROLE_NAME || 'simem-glue-service-role' }}
+      GLUE_DATABASE_NAME: ${{ vars.GLUE_DATABASE_NAME || 'simem_silver' }}
+      GLUE_JOB_NAME: ${{ vars.GLUE_JOB_NAME || 'simem-bronze-to-silver' }}
+      GLUE_CRAWLER_NAME: ${{ vars.GLUE_CRAWLER_NAME || 'simem-silver-crawler' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        if: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION_NAME }}
+
+      - name: Configure AWS Credentials with Static Secrets
+        if: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN == '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION_NAME }}
+
+      - name: Deploy Glue Resources
+        run: bash scripts/deploy_glue_resources.sh
