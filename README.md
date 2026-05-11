@@ -16,6 +16,8 @@ Proyecto separado para AWS Glue que transforma los JSON crudos de SIMEM desde `b
    Agrega los datasets horarios y diarios en una sola tabla de features para forecasting.
 6. `s3://<bucket>/gold/simem-features/demanda-real-hourly/`
    Aqui queda la capa `gold` en `parquet`.
+7. Baseline local
+   Valida nulos, granularidad, split temporal y un modelo simple antes de pasar a SageMaker.
 
 ## Job incluido
 
@@ -167,6 +169,10 @@ Database sugerida:
 ```text
 simem_gold
 ```
+
+## Baseline local
+
+Despues de construir `gold`, revisa [baseline/README.md](/Users/santiagomolano/thinklp/simem-glue-pipeline/baseline/README.md).
 
 ## Validacion local
 

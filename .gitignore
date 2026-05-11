@@ -1,2 +1,6 @@
 __pycache__/
 .DS_Store
+.venv/
+*.pyc
+data/
+baseline/reports/

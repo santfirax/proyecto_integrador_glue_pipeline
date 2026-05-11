@@ -13,6 +13,7 @@ from pyspark.sql import Window
 
 DEFAULT_TARGET_DATASET_SLUG = "demanda-real"
 DEFAULT_LABEL_HORIZON_HOURS = 24
+DEFAULT_VERSION_PRIORITY = ["TXR", "TXF", "TX7", "TX6", "TX5", "TX4", "TX3", "TX2", "TX1"]
 
 
 def get_optional_arg(name, default=None):
@@ -71,6 +72,44 @@ def prefix_non_key_columns(dataframe, prefix, key_columns):
 
 def read_dataset(spark, source_path, dataset_slug):
     return spark.read.parquet(f"{source_path.rstrip('/')}/{dataset_slug}/")
+
+
+def build_version_priority_expression(version_column):
+    mapping = []
+    total_priorities = len(DEFAULT_VERSION_PRIORITY)
+
+    for index, version_name in enumerate(DEFAULT_VERSION_PRIORITY):
+        mapping.extend([F.lit(version_name), F.lit(total_priorities - index)])
+
+    return F.coalesce(
+        F.create_map(*mapping)[F.upper(F.col(version_column).cast("string"))],
+        F.lit(0),
+    )
+
+
+def deduplicate_versioned_rows(dataframe, key_columns):
+    available_key_columns = [column_name for column_name in key_columns if column_name in dataframe.columns]
+
+    if "version" not in dataframe.columns or not available_key_columns:
+        return dataframe
+
+    ordering = [build_version_priority_expression("version").desc()]
+
+    if "processed_at" in dataframe.columns:
+        ordering.append(F.col("processed_at").cast("timestamp").desc_nulls_last())
+
+    if "source_file" in dataframe.columns:
+        ordering.append(F.col("source_file").desc_nulls_last())
+
+    ordering.append(F.upper(F.col("version").cast("string")).desc_nulls_last())
+
+    ranked_window = Window.partitionBy(*available_key_columns).orderBy(*ordering)
+
+    return (
+        dataframe.withColumn("_version_rank", F.row_number().over(ranked_window))
+        .filter(F.col("_version_rank") == 1)
+        .drop("_version_rank")
+    )
 
 
 def aggregate_target_hourly(dataframe, metric_prefix):
@@ -220,9 +259,22 @@ def build_gold_dataset(spark, source_path, target_dataset_slug, label_horizon_ho
     target_metric_prefix = normalize_name(target_dataset_slug)
     target_column = f"target_{target_metric_prefix}"
 
-    target_hourly = aggregate_target_hourly(read_dataset(spark, source_path, target_dataset_slug), target_column)
-    commercial_hourly = aggregate_feature_hourly(read_dataset(spark, source_path, "demanda-comercial"), "demanda_comercial")
-    generation_hourly = aggregate_generation_hourly(read_dataset(spark, source_path, "generacion-real"))
+    target_source = deduplicate_versioned_rows(
+        read_dataset(spark, source_path, target_dataset_slug),
+        ["fechahora", "codigosicagente", "tipomercado", "codigovariable", "codigoduracion", "unidadmedida"],
+    )
+    commercial_source = deduplicate_versioned_rows(
+        read_dataset(spark, source_path, "demanda-comercial"),
+        ["fechahora", "codigosicagente", "tipomercado", "codigovariable", "codigoduracion", "unidadmedida"],
+    )
+    generation_source = deduplicate_versioned_rows(
+        read_dataset(spark, source_path, "generacion-real"),
+        ["fechahora", "codigoplanta", "codigosicagente", "codigovariable", "codigoduracion", "unidadmedida"],
+    )
+
+    target_hourly = aggregate_target_hourly(target_source, target_column)
+    commercial_hourly = aggregate_feature_hourly(commercial_source, "demanda_comercial")
+    generation_hourly = aggregate_generation_hourly(generation_source)
     hydrology_daily = aggregate_hydrology_daily(read_dataset(spark, source_path, "aporte-hidricos"))
     units_daily = aggregate_units_daily(read_dataset(spark, source_path, "unidades-generacion"))
 
