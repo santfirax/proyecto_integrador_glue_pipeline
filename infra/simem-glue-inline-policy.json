@@ -21,8 +21,17 @@
         "s3:DeleteObject"
       ],
       "Resource": [
+        "arn:aws:s3:::eafit-proyecto-integrador-simem/bronze",
+        "arn:aws:s3:::eafit-proyecto-integrador-simem/bronze_$folder$",
         "arn:aws:s3:::eafit-proyecto-integrador-simem/bronze/*",
+        "arn:aws:s3:::eafit-proyecto-integrador-simem/silver",
+        "arn:aws:s3:::eafit-proyecto-integrador-simem/silver_$folder$",
         "arn:aws:s3:::eafit-proyecto-integrador-simem/silver/*",
+        "arn:aws:s3:::eafit-proyecto-integrador-simem/gold",
+        "arn:aws:s3:::eafit-proyecto-integrador-simem/gold_$folder$",
+        "arn:aws:s3:::eafit-proyecto-integrador-simem/gold/*",
+        "arn:aws:s3:::eafit-proyecto-integrador-simem/glue",
+        "arn:aws:s3:::eafit-proyecto-integrador-simem/glue_$folder$",
         "arn:aws:s3:::eafit-proyecto-integrador-simem/glue/*"
       ]
     }

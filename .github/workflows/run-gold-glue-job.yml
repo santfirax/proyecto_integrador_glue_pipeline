@@ -1,0 +1,45 @@
+name: Run Gold Glue Job
+
+on:
+  workflow_dispatch:
+    inputs:
+      label_horizon_hours:
+        description: "Horizonte de prediccion en horas"
+        required: true
+        default: "24"
+        type: string
+      start_crawler:
+        description: "Iniciar crawler al terminar el job"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  run-gold-job:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION_NAME: ${{ vars.AWS_REGION_NAME || 'us-east-1' }}
+      GLUE_JOB_NAME: ${{ vars.GLUE_GOLD_JOB_NAME || 'simem-silver-to-gold-features' }}
+      GLUE_CRAWLER_NAME: ${{ vars.GLUE_GOLD_CRAWLER_NAME || 'simem-gold-features-crawler' }}
+      DATASET_SLUGS: ""
+      START_CRAWLER: ${{ inputs.start_crawler }}
+      WAIT_FOR_JOB: true
+      WAIT_FOR_CRAWLER: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION_NAME }}
+
+      - name: Start Gold Glue Job
+        env:
+          EXTRA_GLUE_ARGS: '{"--LABEL_HORIZON_HOURS":"${{ inputs.label_horizon_hours }}"}'
+        run: bash scripts/run_glue_job.sh

@@ -10,6 +10,7 @@ DATASET_SLUGS="${DATASET_SLUGS:-}"
 WAIT_FOR_JOB="${WAIT_FOR_JOB:-true}"
 START_CRAWLER="${START_CRAWLER:-false}"
 WAIT_FOR_CRAWLER="${WAIT_FOR_CRAWLER:-true}"
+EXTRA_GLUE_ARGS="${EXTRA_GLUE_ARGS:-}"
 
 AWS_ARGS=(--region "${REGION}")
 
@@ -21,6 +22,23 @@ JOB_ARGS='{}'
 
 if [[ -n "${DATASET_SLUGS}" ]]; then
   JOB_ARGS="{\"--DATASET_SLUGS\":\"${DATASET_SLUGS}\"}"
+fi
+
+if [[ -n "${EXTRA_GLUE_ARGS}" ]]; then
+  if [[ "${JOB_ARGS}" == "{}" ]]; then
+    JOB_ARGS="${EXTRA_GLUE_ARGS}"
+  else
+    JOB_ARGS="$(python3 - <<'PY' "${JOB_ARGS}" "${EXTRA_GLUE_ARGS}"
+import json
+import sys
+
+current_args = json.loads(sys.argv[1])
+extra_args = json.loads(sys.argv[2])
+current_args.update(extra_args)
+print(json.dumps(current_args, separators=(",", ":")))
+PY
+)"
+  fi
 fi
 
 echo "Iniciando Glue job ${JOB_NAME}"

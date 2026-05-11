@@ -1,6 +1,6 @@
 # SIMEM Glue Pipeline
 
-Proyecto separado para AWS Glue que transforma los JSON crudos de SIMEM desde `bronze/simem-data` hacia una capa `silver` en `parquet`.
+Proyecto separado para AWS Glue que transforma los JSON crudos de SIMEM desde `bronze/simem-data` hacia una capa `silver` en `parquet` y luego construye una capa `gold` para modelado.
 
 ## Arquitectura recomendada
 
@@ -12,6 +12,10 @@ Proyecto separado para AWS Glue que transforma los JSON crudos de SIMEM desde `b
    Aqui queda el `parquet` particionado para consulta.
 4. Glue Crawler sobre `silver/simem-data/`
    Cataloga las tablas para Athena o consumo posterior.
+5. Glue Job `simem-silver-to-gold-features`
+   Agrega los datasets horarios y diarios en una sola tabla de features para forecasting.
+6. `s3://<bucket>/gold/simem-features/demanda-real-hourly/`
+   Aqui queda la capa `gold` en `parquet`.
 
 ## Job incluido
 
@@ -32,6 +36,19 @@ Hace esto:
   - `month`
 - Escribe `parquet` en `silver/simem-data/<dataset_slug>/year=.../month=.../`
 
+## Job Gold incluido
+
+Script: [jobs/simem_silver_to_gold_features.py](/Users/santiagomolano/thinklp/simem-glue-pipeline/jobs/simem_silver_to_gold_features.py)
+
+Hace esto:
+
+- Lee `demanda-real`, `demanda-comercial`, `generacion-real`, `aporte-hidricos` y `unidades-generacion` desde `silver`.
+- Agrega series horarias y diarias a una granularidad horaria.
+- Usa `demanda_real` como target por defecto.
+- Crea features de calendario, lags y rolling windows.
+- Genera una etiqueta futura configurable con `--LABEL_HORIZON_HOURS`.
+- Escribe `parquet` en `gold/simem-features/demanda-real-hourly/`.
+
 ## Parametros del Glue Job
 
 - `--JOB_NAME`: nombre del job de Glue.
@@ -45,6 +62,8 @@ Quedo listo para ejecutarse desde GitHub Actions con estos workflows:
 
 - [.github/workflows/deploy-glue.yml](/Users/santiagomolano/thinklp/simem-glue-pipeline/.github/workflows/deploy-glue.yml)
 - [.github/workflows/run-glue-job.yml](/Users/santiagomolano/thinklp/simem-glue-pipeline/.github/workflows/run-glue-job.yml)
+- [.github/workflows/deploy-gold-glue.yml](/Users/santiagomolano/thinklp/simem-glue-pipeline/.github/workflows/deploy-gold-glue.yml)
+- [.github/workflows/run-gold-glue-job.yml](/Users/santiagomolano/thinklp/simem-glue-pipeline/.github/workflows/run-gold-glue-job.yml)
 
 ### Variables y secretos del repo
 
@@ -56,6 +75,9 @@ Variables recomendadas:
 - `GLUE_DATABASE_NAME=simem_silver`
 - `GLUE_JOB_NAME=simem-bronze-to-silver`
 - `GLUE_CRAWLER_NAME=simem-silver-crawler`
+- `GLUE_GOLD_DATABASE_NAME=simem_gold`
+- `GLUE_GOLD_JOB_NAME=simem-silver-to-gold-features`
+- `GLUE_GOLD_CRAWLER_NAME=simem-gold-features-crawler`
 
 Secreto requerido:
 
@@ -115,6 +137,35 @@ Database sugerida:
 
 ```text
 simem_silver
+```
+
+## Flujo Gold sugerido
+
+1. Despliega los recursos Gold:
+
+```bash
+bash /Users/santiagomolano/thinklp/simem-glue-pipeline/scripts/deploy_gold_resources.sh
+```
+
+2. Ejecuta el job Gold con horizonte de 24 horas:
+
+```bash
+EXTRA_GLUE_ARGS='{"--LABEL_HORIZON_HOURS":"24"}' \
+GLUE_JOB_NAME=simem-silver-to-gold-features \
+GLUE_CRAWLER_NAME=simem-gold-features-crawler \
+bash /Users/santiagomolano/thinklp/simem-glue-pipeline/scripts/run_glue_job.sh
+```
+
+3. Crea o actualiza el crawler sobre:
+
+```text
+s3://eafit-proyecto-integrador-simem/gold/simem-features/demanda-real-hourly/
+```
+
+Database sugerida:
+
+```text
+simem_gold
 ```
 
 ## Validacion local

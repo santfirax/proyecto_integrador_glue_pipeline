@@ -1,0 +1,40 @@
+name: Deploy Gold Glue Resources
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - "jobs/simem_silver_to_gold_features.py"
+      - "infra/**"
+      - "scripts/deploy_gold_resources.sh"
+      - ".github/workflows/deploy-gold-glue.yml"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy-gold:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION_NAME: ${{ vars.AWS_REGION_NAME || 'us-east-1' }}
+      S3_BUCKET_NAME: ${{ vars.S3_BUCKET_NAME }}
+      GLUE_ROLE_NAME: ${{ vars.GLUE_ROLE_NAME || 'simem-glue-service-role' }}
+      GLUE_GOLD_DATABASE_NAME: ${{ vars.GLUE_GOLD_DATABASE_NAME || 'simem_gold' }}
+      GLUE_GOLD_JOB_NAME: ${{ vars.GLUE_GOLD_JOB_NAME || 'simem-silver-to-gold-features' }}
+      GLUE_GOLD_CRAWLER_NAME: ${{ vars.GLUE_GOLD_CRAWLER_NAME || 'simem-gold-features-crawler' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION_NAME }}
+
+      - name: Deploy Gold Glue Resources
+        run: bash scripts/deploy_gold_resources.sh
