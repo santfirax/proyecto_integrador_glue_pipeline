@@ -16,6 +16,7 @@ SOURCE_PATH="s3://${BUCKET}/silver/simem-data/"
 TARGET_PATH="s3://${BUCKET}/gold/simem-features/demanda-real-hourly/"
 TRUST_POLICY_PATH="${PROJECT_ROOT}/infra/glue-trust-policy.json"
 INLINE_POLICY_PATH="${PROJECT_ROOT}/infra/simem-glue-inline-policy.json"
+CRAWLER_CONFIGURATION='{"Version":1.0}'
 
 AWS_ARGS=(--region "${REGION}")
 
@@ -100,6 +101,7 @@ if aws glue get-crawler --name "${CRAWLER_NAME}" "${AWS_ARGS[@]}" >/dev/null 2>&
     --role "${ROLE_ARN}" \
     --database-name "${DATABASE_NAME}" \
     --targets "{\"S3Targets\":[{\"Path\":\"${TARGET_PATH}\"}]}" \
+    --configuration "${CRAWLER_CONFIGURATION}" \
     --schema-change-policy '{"UpdateBehavior":"UPDATE_IN_DATABASE","DeleteBehavior":"DEPRECATE_IN_DATABASE"}' \
     "${AWS_ARGS[@]}" >/dev/null
 else
@@ -109,6 +111,7 @@ else
     --role "${ROLE_ARN}" \
     --database-name "${DATABASE_NAME}" \
     --targets "{\"S3Targets\":[{\"Path\":\"${TARGET_PATH}\"}]}" \
+    --configuration "${CRAWLER_CONFIGURATION}" \
     --schema-change-policy '{"UpdateBehavior":"UPDATE_IN_DATABASE","DeleteBehavior":"DEPRECATE_IN_DATABASE"}' \
     "${AWS_ARGS[@]}" >/dev/null
 fi

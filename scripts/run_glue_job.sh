@@ -11,6 +11,8 @@ WAIT_FOR_JOB="${WAIT_FOR_JOB:-true}"
 START_CRAWLER="${START_CRAWLER:-false}"
 WAIT_FOR_CRAWLER="${WAIT_FOR_CRAWLER:-true}"
 EXTRA_GLUE_ARGS="${EXTRA_GLUE_ARGS:-}"
+SILVER_TARGET_BUCKET="${SILVER_TARGET_BUCKET:-}"
+SILVER_TARGET_PREFIX="${SILVER_TARGET_PREFIX:-}"
 
 AWS_ARGS=(--region "${REGION}")
 
@@ -77,6 +79,23 @@ if [[ "${WAIT_FOR_JOB}" == "true" ]]; then
 fi
 
 if [[ "${START_CRAWLER}" == "true" ]]; then
+  if [[ "${CRAWLER_NAME}" == "simem-silver-crawler" ]]; then
+    if [[ -z "${SILVER_TARGET_BUCKET}" ]]; then
+      SILVER_TARGET_BUCKET="${S3_BUCKET_NAME:-eafit-proyecto-integrador-simem}"
+    fi
+
+    if [[ -z "${SILVER_TARGET_PREFIX}" ]]; then
+      SILVER_TARGET_PREFIX="silver/simem-data/"
+    fi
+
+    echo "Actualizando targets del crawler ${CRAWLER_NAME} desde s3://${SILVER_TARGET_BUCKET}/${SILVER_TARGET_PREFIX}"
+    python3 scripts/refresh_silver_crawler_targets.py \
+      --crawler-name "${CRAWLER_NAME}" \
+      --bucket "${SILVER_TARGET_BUCKET}" \
+      --prefix "${SILVER_TARGET_PREFIX}" \
+      --region "${REGION}"
+  fi
+
   echo "Iniciando crawler ${CRAWLER_NAME}"
   aws glue start-crawler \
     --name "${CRAWLER_NAME}" \
