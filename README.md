@@ -129,6 +129,8 @@ aws s3 cp \
 --TARGET_PATH=s3://eafit-proyecto-integrador-simem/silver/simem-data/
 ```
 
+Cuando ejecutes `scripts/run_glue_job.sh` para el job `simem-bronze-to-silver`, el crawler `simem-silver-crawler` se inicia por defecto si `START_CRAWLER` no esta definido. Si quieres omitirlo en una corrida puntual, usa `START_CRAWLER=false`.
+
 6. Crea un crawler sobre:
 
 ```text
@@ -173,6 +175,63 @@ simem_gold
 ## Baseline local
 
 Despues de construir `gold`, revisa [baseline/README.md](/Users/santiagomolano/thinklp/simem-glue-pipeline/baseline/README.md).
+
+## QuickSight como codigo
+
+Para crear o actualizar el data source de Athena y los datasets base de QuickSight a partir del schema que ya existe en Glue, usa este script:
+
+```bash
+python scripts/sync_quicksight_resources.py
+```
+
+Por defecto sincroniza todas las tablas de:
+
+- `simem_refined`
+- `simem_gold`
+
+Y crea o actualiza:
+
+- data source `athena-simem-primary`
+- un dataset por cada tabla encontrada
+- ingestas `SPICE`
+
+Ejemplos utiles:
+
+Solo ver que haria:
+
+```bash
+python scripts/sync_quicksight_resources.py --dry-run
+```
+
+Sincronizar solo tablas puntuales:
+
+```bash
+python scripts/sync_quicksight_resources.py \
+  --table simem_refined.eda_demanda_mensual \
+  --table simem_refined.eda_demanda_real_vs_comercial \
+  --table simem_gold.demanda_real_hourly
+```
+
+Esperar a que terminen las ingestas SPICE:
+
+```bash
+python scripts/sync_quicksight_resources.py --wait-for-ingestions
+```
+
+Otorgar al role de servicio de QuickSight acceso de lectura al bucket del proyecto y luego sincronizar datasets:
+
+```bash
+python scripts/sync_quicksight_resources.py \
+  --grant-s3-bucket-access eafit-proyecto-integrador-simem \
+  --wait-for-ingestions
+```
+
+Notas:
+
+- El script lee tipos y columnas desde `Glue`, asi que no toca mantener schemas a mano.
+- Si QuickSight todavia no tiene autorizados `Athena` y el bucket `S3` desde `Manage QuickSight -> Security & permissions`, la creacion puede fallar y esa habilitacion toca hacerla una vez.
+- La opcion `--grant-s3-bucket-access` agrega una policy inline de lectura al role `aws-quicksight-service-role-v0`, que suele ser suficiente cuando las ingestas SPICE fallan por acceso al bucket.
+- El workgroup usado por defecto es `primary`, pero puedes cambiarlo con `--workgroup`.
 
 ## Validacion local
 

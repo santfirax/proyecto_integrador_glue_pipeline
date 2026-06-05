@@ -8,11 +8,20 @@ JOB_NAME="${GLUE_JOB_NAME:-simem-bronze-to-silver}"
 CRAWLER_NAME="${GLUE_CRAWLER_NAME:-simem-silver-crawler}"
 DATASET_SLUGS="${DATASET_SLUGS:-}"
 WAIT_FOR_JOB="${WAIT_FOR_JOB:-true}"
-START_CRAWLER="${START_CRAWLER:-false}"
 WAIT_FOR_CRAWLER="${WAIT_FOR_CRAWLER:-true}"
 EXTRA_GLUE_ARGS="${EXTRA_GLUE_ARGS:-}"
 SILVER_TARGET_BUCKET="${SILVER_TARGET_BUCKET:-}"
 SILVER_TARGET_PREFIX="${SILVER_TARGET_PREFIX:-}"
+
+if [[ -z "${START_CRAWLER+x}" ]]; then
+  if [[ "${JOB_NAME}" == "simem-bronze-to-silver" || "${CRAWLER_NAME}" == "simem-silver-crawler" ]]; then
+    START_CRAWLER="true"
+  else
+    START_CRAWLER="false"
+  fi
+else
+  START_CRAWLER="${START_CRAWLER}"
+fi
 
 AWS_ARGS=(--region "${REGION}")
 
